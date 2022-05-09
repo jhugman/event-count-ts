@@ -16,11 +16,15 @@
     "author": "Mozilla Nimbus Team",
     "license": "MPL-2.0",
     "devDependencies": {
+        "@types/date-arithmetic": "^4.1.1",
         "@types/jest": "^27.5.0",
         "jest": "^28.1.0",
         "onchange": "^7.1.0",
         "prettier": "^2.6.2",
         "ts-jest": "^28.0.2",
         "typescript": "^4.6.4"
+    },
+    "dependencies": {
+        "date-arithmetic": "^4.1.0"
     }
 }

@@ -1,7 +1,8 @@
-import { SingleIntervalCounter, IntervalConfig } from '../SingleIntervalCounter'
+import { SingleIntervalCounter } from '../SingleIntervalCounter'
+import { IntervalConfig } from '../IntervalConfig'
 
 // This is an interval that represents a second long bucket, with 60 buckets.
-const config = new IntervalConfig(1000, 60)
+const config: IntervalConfig = { interval: 1000, numBuckets: 60, id: 'second' }
 const now = Date.now()
 const times = [0, 1, 10, 59, 60, 61, 62, 72].map((t) => t * 1000 + now)
 const [t0, t1, t10, t59, t60, t61, t62, t72] = times

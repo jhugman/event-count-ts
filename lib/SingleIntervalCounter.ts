@@ -1,19 +1,12 @@
-export type Instant = number
-export type Duration = number
-export type Count = number
-export type OptionalErrorMessage = string | undefined
-export type Int = number
-
-export interface IntervalCounter {
-    increment(count: Count): void
-    maybeAdvance(now: Instant, newCurrrentBucket: Count): Count | null
-    query(
-        index: Int,
-        numBuckets: Int,
-        reducer: (a: number, b: Count) => number
-    ): number
-    checkInvariant(): OptionalErrorMessage
-}
+import { IntervalConfig } from './IntervalConfig'
+import {
+    Count,
+    Instant,
+    Int,
+    IntervalCounter,
+    OptionalErrorMessage,
+} from './IntervalCounter'
+import { EventCountReducer, sum } from './reducers'
 
 class IntervalData {
     runningTotal: Count = 0
@@ -38,7 +31,7 @@ class IntervalData {
     query(
         index: Int = 0,
         numBuckets: Int = 1,
-        reducer: (a: number, b: Count) => number = (a, b) => a + b
+        reducer: EventCountReducer = sum
     ): number {
         if (index < 0) {
             index = this.buckets.length + index
@@ -47,7 +40,7 @@ class IntervalData {
             index += numBuckets
             numBuckets *= -1
         }
-        return this.buckets.slice(index, index + numBuckets).reduce(reducer)
+        return this.buckets.slice(index, index + numBuckets).reduce(reducer, 0)
     }
 
     rotate(numRotations: Int, newCurrent: Count): Count {
@@ -73,16 +66,6 @@ class IntervalData {
     }
 }
 
-export class IntervalConfig {
-    interval: Duration
-    numBuckets: Int
-
-    constructor(interval: Duration, numBuckets: Int) {
-        this.interval = interval
-        this.numBuckets = numBuckets
-    }
-}
-
 export class SingleIntervalCounter implements IntervalCounter {
     private data: IntervalData
     private config: IntervalConfig
@@ -95,6 +78,10 @@ export class SingleIntervalCounter implements IntervalCounter {
         return this.data.runningTotal
     }
 
+    public get id(): string {
+        return this.config.id
+    }
+
     constructor(config: IntervalConfig, lastTick: Instant) {
         this.data = IntervalData.empty(config.numBuckets, lastTick)
         this.config = config
@@ -104,14 +91,10 @@ export class SingleIntervalCounter implements IntervalCounter {
         this.data.increment(count)
     }
 
-    maybeAdvance(
-        now: Instant,
-        newCurrrentBucket: Count = this.current
-    ): Count | null {
+    maybeAdvance(now: Instant, newCurrrentBucket: Count = 0): Count | null {
         const numRollovers = this.numRollovers(now)
 
         if (numRollovers <= 0) {
-            // this.increment(newCurrrentBucket - this.current)
             return null
         }
 
@@ -123,7 +106,7 @@ export class SingleIntervalCounter implements IntervalCounter {
     query(
         index: Int = 0,
         numBuckets: Int = 1,
-        reducer: (a: number, b: Count) => number = (a, b) => a + b
+        reducer: EventCountReducer = sum
     ): number {
         return this.data.query(index, numBuckets, reducer)
     }
