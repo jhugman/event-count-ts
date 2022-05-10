@@ -1,9 +1,7 @@
 import { IntervalConfig } from '../IntervalConfig'
 import { Instant } from '../IntervalCounter'
-import {
-    MultiIntervalCounter,
-    SimpleLastTickMap,
-} from '../MultiIntervalCounter'
+import { MultiIntervalCounter } from '../MultiIntervalCounter'
+import { SimpleLastTickMap } from '../LastTickTimer'
 
 const now = Date.now()
 const ms = 1
@@ -56,6 +54,36 @@ describe('MultiIntervalCounter', () => {
         expect(counter.query(1, 'minute')).toBe(1)
         expect(counter.query(1, 'hour')).toBe(1)
         expect(counter.query(1, 'day')).toBe(1)
+
+        counter.maybeAdvance(now + 1 * min)
+
+        expect(counter.query(1, 'minute')).toBe(0)
+        expect(counter.query(1, 'hour')).toBe(1)
+        expect(counter.query(1, 'day')).toBe(1)
+    })
+
+    it('increments running total and current count part II', () => {
+        const counter = new MultiIntervalCounter(
+            now,
+            configs,
+            new SimpleLastTickMap()
+        )
+
+        for (let i = 0; i < 60; i++) {
+            counter.increment(1)
+            expect(counter.query(1, 'minute', 0)).toBe(
+                counter.query(1, 'hour', 0)
+            )
+            expect(counter.query(1, 'hour', 0)).toBe(counter.query(1, 'day', 0))
+            counter.maybeAdvance(now + i * sec)
+        }
+
+        for (let i = 60; i < 24 * 60; i++) {
+            counter.increment(1)
+            console.log(`i = ${i}`)
+            expect(counter.query(1, 'hour', 0)).toBe(60)
+            counter.maybeAdvance(now + i * min)
+        }
     })
 
     function checkInvariant(now: Instant) {
