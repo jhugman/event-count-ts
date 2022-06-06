@@ -5,13 +5,37 @@ import {
     Int,
     IntervalCounter,
     OptionalErrorMessage,
+    Option,
 } from './IntervalCounter'
 import { EventCountReducer, sum } from './reducers'
 
 class IntervalData {
-    runningTotal: Count = 0
+
+    /**
+     * This is the counts from the previous intervals. If the interval is `day`, the this might be the
+     * counts from the previous full days e.g. 7 days.
+     *
+     * Everytime we an interval ticks by, we rotate the `buckets` array.
+     *
+     * `bucket[0]` is an _estimate_ on this current interval, based upon the smaller interval counters e.g. 24 hours. i.e. it should be
+     * the count of events that happened in the **last 24 hours**. Contrast this with `actualCount`.
+     *
+     * It's unclear if this difference between the **last 24 hours** and **today** is actually helpful, and adds lots of unnecessary machinery
+     * when the difference is expressable in a query interface.
+     */
     buckets: Array<Count> = []
+
+    /**
+     * This is the running total of `buckets`.
+     */
+    runningTotal: Count = 0
     lastTick: Instant = 0
+
+    /**
+     * This is a counter of the number of events that happened in this current interval.
+     * If the interval is `day`, then this would be number of events that happened **today**.
+     */
+    actualCount: Count = 0
 
     static empty(numberBuckets: Int, lastTick: Instant): IntervalData {
         return new IntervalData(lastTick, new Array(numberBuckets).fill(0))
@@ -20,12 +44,20 @@ class IntervalData {
     constructor(lastTick: Instant, buckets: Array<Count>) {
         this.lastTick = lastTick
         this.buckets = buckets
+
         this.runningTotal = buckets.reduce((a, b) => a + b)
     }
 
     increment(count: Count) {
         this.buckets[0] += count
         this.runningTotal += count
+        this.actualCount += count
+    }
+
+    updateEstimate(estimate: Count) {
+        const prev = this.buckets[0]
+        this.buckets[0] = estimate
+        this.runningTotal += estimate - prev
     }
 
     query(
@@ -43,15 +75,37 @@ class IntervalData {
         return this.buckets.slice(index, index + numBuckets).reduce(reducer, 0)
     }
 
-    rotate(numRotations: Int, newCurrent: Count): Count {
+    rotate(numRotations: Int, postRolloverEstimate: Count): Count {
         let overflow = 0
+        const preRolloverEstimate = this.buckets[0]
+        const prevRunningTotal = this.runningTotal
+        const actualBucketCount = this.actualCount
+        this.buckets[0] = actualBucketCount
+
         for (let i = 0; i < numRotations; i++) {
             overflow += this.buckets.pop() ?? 0
             this.buckets.unshift(0)
         }
 
-        this.runningTotal += newCurrent - overflow
-        this.buckets[0] = newCurrent
+        // Before the rotations, we remove the estimate, and replace it with the actual.
+        this.runningTotal +=
+            actualBucketCount -
+            preRolloverEstimate +
+            // then after the rotations, we remove the oldest actual measurements (i.e. the overflow),
+            // and add the newest rolling total from a more granular estimate.
+            postRolloverEstimate -
+            overflow
+
+        // console.table({
+        //     actualBucketCount,
+        //     preRolloverEstimate,
+        //     postRolloverEstimate,
+        //     overflow,
+        //     prevRunningTotal,
+        //     newRunningTotal: this.runningTotal,
+        // })
+        this.buckets[0] = postRolloverEstimate
+        this.actualCount = 0
 
         return overflow
     }
@@ -70,7 +124,10 @@ export class SingleIntervalCounter implements IntervalCounter {
     private data: IntervalData
     private config: IntervalConfig
 
-    public get current(): Count {
+    /**
+     * This property is the count of events that occurred in the previous interval up until this moment.
+     */
+    public get estimate(): Count {
         return this.data.buckets[0]
     }
 
@@ -91,16 +148,20 @@ export class SingleIntervalCounter implements IntervalCounter {
         this.data.increment(count)
     }
 
-    maybeAdvance(now: Instant, newCurrrentBucket: Count = 0): Count | null {
+    updateEstimate(estimate: Count) {
+        this.data.updateEstimate(estimate)
+    }
+
+    maybeAdvance(now: Instant, rolledOverEstimate: Count = 0): Option<Count> {
         const numRollovers = this.numRollovers(now)
 
         if (numRollovers <= 0) {
-            return null
+            return
         }
 
         this.data.lastTick += numRollovers * this.config.interval
 
-        return this.data.rotate(numRollovers, newCurrrentBucket)
+        return this.data.rotate(numRollovers, rolledOverEstimate)
     }
 
     query(

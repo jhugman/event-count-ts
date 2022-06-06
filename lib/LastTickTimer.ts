@@ -1,7 +1,15 @@
 import { Instant } from './IntervalCounter'
 import * as dateMath from 'date-arithmetic'
 
+/**
+ * Gets the first moment of the current interval.
+ * e.g. the top of this hour, or midnight last night.
+ */
 type LastTickTimer = (now: Instant) => Instant
+
+/**
+ * A map of `FirstMomentTimer`s.
+ */
 export interface LastTickMap {
     has(id: string): boolean
     getLastTick(now: Instant, id: string): Instant
