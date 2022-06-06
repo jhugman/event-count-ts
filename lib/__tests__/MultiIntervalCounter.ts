@@ -80,13 +80,18 @@ describe('MultiIntervalCounter', () => {
             expect(counter.checkInvariant()).toBeUndefined()
         }
 
+        counter.increment(1)
         for (let i = threshold; i < 60 * 60; i++) {
-            counter.increment(1)
             counter.maybeAdvance(now + i * sec)
+            counter.increment(1)
             expect(counter.checkInvariant()).toBeUndefined()
-            // console.log(`i = ${i}, count =`, counter.estimate('minute'))
-            // expect(counter.query(1, 'minute', 0)).toBe(60)
+
+            // previous minute
             expect(counter.query(1, 'minute', 1)).toBe(60)
+            // current minute
+            expect(counter.query(1, 'minute', 0)).toBe((i % 60) + 1)
+            // in the last 60 seconds
+            expect(counter.query(60, 'second', 0)).toBe(60)
         }
     })
 

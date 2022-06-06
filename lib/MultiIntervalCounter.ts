@@ -37,24 +37,8 @@ export class MultiIntervalCounter implements IntervalCounter {
     }
 
     maybeAdvance(now: Instant, _: Count = 0): Option<Count> {
-        let p: Option<SingleIntervalCounter> = undefined
-        for (let c of this.counters.values()) {
-            if (p == undefined) {
-                c.maybeAdvance(now, 0)
-            } else {
-                const latestEstimate = p.total
-                if (c.maybeAdvance(now, latestEstimate) === undefined) {
-                    c.updateEstimate(latestEstimate)
-                }
-            }
-            p = c
-        }
-
-        return p?.total
-    }
-
-    estimate(id: string): Count {
-        return this.counters.get(id)?.estimate ?? 0
+        this.counters.forEach((v, _k, _map) => v.maybeAdvance(now))
+        return
     }
 
     /**
@@ -69,10 +53,15 @@ export class MultiIntervalCounter implements IntervalCounter {
         numBuckets: Int = 1,
         id: string,
         fromIndex: Int = 0,
-        reducer: EventCountReducer = sum
+        reducer: EventCountReducer = sum,
+        initialValue = 0
     ): number | undefined {
         const counter = this.counters.get(id)
-        return counter?.query(fromIndex, numBuckets, reducer)
+
+        if (!counter) {
+            throw new Error(`Problem with ${id} counter`)
+        }
+        return counter.query(fromIndex, numBuckets, reducer, initialValue)
     }
 
     checkInvariant(): OptionalErrorMessage {
@@ -80,19 +69,6 @@ export class MultiIntervalCounter implements IntervalCounter {
             const err = c.checkInvariant()
             if (err) {
                 return err
-            }
-        }
-        const counters = [...this.counters.values()]
-        for (let i = 0; i < counters.length - 1; i++) {
-            const c0 = counters[i]
-            const c1 = counters[i + 1]
-
-            // This invariant might not be desirable, as it needs quite a lot of machinery
-            // which may not turn out to be useful.
-            const expected = c0.total
-            const observed = c1.estimate
-            if (observed !== expected) {
-                return `Running total count for ${c0.id} isn't current count for ${c1.id} ${expected} !== ${observed} `
             }
         }
     }

@@ -19,6 +19,9 @@ export class SimpleLastTickMap implements LastTickMap {
     private map = new Map<string, LastTickTimer>()
 
     constructor() {
+        this.map.set('second', (now) =>
+            dateMath.startOf(new Date(now), 'seconds').getTime()
+        )
         this.map.set('minute', (now) =>
             dateMath.startOf(new Date(now), 'minutes').getTime()
         )
