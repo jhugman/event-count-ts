@@ -1,32 +1,32 @@
 import { IntervalConfig } from './IntervalConfig'
-import {
-    Count,
-    Instant,
-    Int,
-    IntervalCounter,
-    Option,
-    OptionalErrorMessage,
-} from './IntervalCounter'
+import { IntervalCounter } from './IntervalCounter'
+import { Count, Instant, Int, Option, ErrorMessage } from './types'
 import { SingleIntervalCounter } from './SingleIntervalCounter'
 
-import { sum, EventCountReducer } from './reducers'
-import { LastTickMap } from './LastTickTimer'
+import { sum, EventCountReducer } from '../query/reducers'
+import {
+    SimpleStartInstantCalculator,
+    StartInstantCalculator,
+} from './startInstant'
 
-export class MultiIntervalCounter implements IntervalCounter {
+/**
+ * Single event, multiple interval granularity event counter.
+ */
+export class MultiIntervalCounter {
     private counters: Map<string, SingleIntervalCounter>
     constructor(
         now: Instant,
         configs: Array<IntervalConfig>,
-        lastTicks: LastTickMap
+        timer: StartInstantCalculator = new SimpleStartInstantCalculator()
     ) {
         this.counters = new Map(
             configs
-                .filter((c) => lastTicks.has(c.id))
+                .filter((c) => timer.supports(c.id))
                 .map((c) => [
                     c.id,
                     new SingleIntervalCounter(
                         c,
-                        lastTicks.getLastTick(now, c.id)
+                        timer.calculateStartInstantBefore(now, c.id)
                     ),
                 ])
         )
@@ -36,9 +36,8 @@ export class MultiIntervalCounter implements IntervalCounter {
         this.counters.forEach((v, _k, _map) => v.increment(count))
     }
 
-    maybeAdvance(now: Instant, _: Count = 0): Option<Count> {
+    maybeAdvance(now: Instant) {
         this.counters.forEach((v, _k, _map) => v.maybeAdvance(now))
-        return
     }
 
     /**
@@ -64,7 +63,7 @@ export class MultiIntervalCounter implements IntervalCounter {
         return counter.query(fromIndex, numBuckets, reducer, initialValue)
     }
 
-    checkInvariant(): OptionalErrorMessage {
+    checkInvariant(): Option<ErrorMessage> {
         for (let c of this.counters.values()) {
             const err = c.checkInvariant()
             if (err) {

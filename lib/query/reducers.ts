@@ -1,4 +1,4 @@
-import { Count } from './IntervalCounter'
+import { Count } from '../record/types'
 
 export type EventCountReducer = (a: number, b: Count) => number
 

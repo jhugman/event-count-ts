@@ -1,52 +1,23 @@
-import { IntervalConfig } from '../IntervalConfig'
-import { Instant } from '../IntervalCounter'
+import { Instant } from '../types'
 import { MultiIntervalCounter } from '../MultiIntervalCounter'
-import { SimpleLastTickMap } from '../LastTickTimer'
+import { SimpleStartInstantCalculator } from '../startInstant'
+import { minute, second, hour, day, testIntervals } from '../intervals'
 
 const now = 1500000000
-const ms = 1
-const sec = 1000 * ms
-const min = 60 * sec
-const hr = 60 * min
-const day = 24 * hr
-
 function createTestTimes(now: Instant): Array<Instant> {
-    return [1 * min + 1 * sec, 1 * hr + 1 * min, 1 * day + 1 * sec].map(
-        (i) => i + now
-    )
+    return [
+        1 * minute + 1 * second,
+        1 * hour + 1 * minute,
+        1 * day + 1 * second,
+    ].map((i) => i + now)
 }
-
-const configs: Array<IntervalConfig> = [
-    {
-        id: 'second',
-        interval: 1 * sec,
-    },
-    {
-        id: 'minute',
-        interval: 1 * min,
-    },
-    {
-        id: 'hour',
-        interval: 1 * hr,
-    },
-    {
-        id: 'day',
-        interval: 1 * day,
-    },
-].map((config, index, array) => {
-    const numBuckets =
-        index < array.length - 1
-            ? Math.floor(array[index + 1].interval / config.interval)
-            : 5
-    return { numBuckets, ...config }
-})
 
 describe('MultiIntervalCounter', () => {
     it('increments running total and current count', () => {
         const counter = new MultiIntervalCounter(
             now,
-            configs,
-            new SimpleLastTickMap()
+            testIntervals,
+            new SimpleStartInstantCalculator()
         )
 
         counter.increment(1)
@@ -55,18 +26,18 @@ describe('MultiIntervalCounter', () => {
         expect(counter.query(1, 'hour')).toBe(1)
         expect(counter.query(1, 'day')).toBe(1)
 
-        counter.maybeAdvance(now + 1 * min)
+        counter.maybeAdvance(now + 1 * minute)
 
         expect(counter.query(1, 'minute')).toBe(0)
         expect(counter.query(1, 'hour')).toBe(1)
         expect(counter.query(1, 'day')).toBe(1)
     })
 
-    it('increments running total and current count part II', () => {
+    it('increments and supports querying', () => {
         const counter = new MultiIntervalCounter(
             now,
-            configs,
-            new SimpleLastTickMap()
+            testIntervals,
+            new SimpleStartInstantCalculator()
         )
 
         const threshold = 60
@@ -76,13 +47,13 @@ describe('MultiIntervalCounter', () => {
                 counter.query(1, 'hour', 0)
             )
             expect(counter.query(1, 'hour', 0)).toBe(counter.query(1, 'day', 0))
-            counter.maybeAdvance(now + i * sec)
+            counter.maybeAdvance(now + i * second)
             expect(counter.checkInvariant()).toBeUndefined()
         }
 
         counter.increment(1)
         for (let i = threshold; i < 60 * 60; i++) {
-            counter.maybeAdvance(now + i * sec)
+            counter.maybeAdvance(now + i * second)
             counter.increment(1)
             expect(counter.checkInvariant()).toBeUndefined()
 
@@ -99,8 +70,8 @@ describe('MultiIntervalCounter', () => {
         const times = createTestTimes(now)
         const counter = new MultiIntervalCounter(
             now,
-            configs,
-            new SimpleLastTickMap()
+            testIntervals,
+            new SimpleStartInstantCalculator()
         )
 
         expect(counter.checkInvariant()).toBeUndefined()
@@ -121,12 +92,16 @@ describe('MultiIntervalCounter', () => {
     })
 
     it('invariant checks out before midnight', () => {
-        const lastTickMap = new SimpleLastTickMap()
-        checkInvariant(lastTickMap.getLastTick(now, 'day') - 1 * min)
+        const lastTickMap = new SimpleStartInstantCalculator()
+        checkInvariant(
+            lastTickMap.calculateStartInstantBefore(now, 'day') - 1 * minute
+        )
     })
 
     it('invariant checks out after midnight', () => {
-        const lastTickMap = new SimpleLastTickMap()
-        checkInvariant(lastTickMap.getLastTick(now, 'day') + 1 * min)
+        const lastTickMap = new SimpleStartInstantCalculator()
+        checkInvariant(
+            lastTickMap.calculateStartInstantBefore(now, 'day') + 1 * minute
+        )
     })
 })
