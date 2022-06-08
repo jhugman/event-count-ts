@@ -18,6 +18,7 @@
     "devDependencies": {
         "@types/date-arithmetic": "^4.1.1",
         "@types/jest": "^27.5.0",
+        "@types/jexl": "^2.3.0",
         "jest": "^28.1.0",
         "onchange": "^7.1.0",
         "prettier": "^2.6.2",
@@ -25,6 +26,7 @@
         "typescript": "^4.6.4"
     },
     "dependencies": {
-        "date-arithmetic": "^4.1.0"
+        "date-arithmetic": "^4.1.0",
+        "jexl": "^2.3.0"
     }
 }

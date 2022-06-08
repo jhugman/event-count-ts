@@ -3,7 +3,13 @@ import { MultiIntervalCounter } from '../MultiIntervalCounter'
 import { SimpleStartInstantCalculator } from '../startInstant'
 import { minute, second, hour, day, testIntervals } from '../intervals'
 
-const now = 1500000000
+const startInstantCalculator = new SimpleStartInstantCalculator()
+// We calculate `now` as being at the beginning of the minute, because it makes the tests
+// deterministic.
+const now = startInstantCalculator.calculateStartInstantBefore(
+    new Date().getTime(),
+    'minute'
+)
 function createTestTimes(now: Instant): Array<Instant> {
     return [
         1 * minute + 1 * second,
@@ -17,7 +23,7 @@ describe('MultiIntervalCounter', () => {
         const counter = new MultiIntervalCounter(
             now,
             testIntervals,
-            new SimpleStartInstantCalculator()
+            startInstantCalculator
         )
 
         counter.increment(1)
@@ -37,7 +43,7 @@ describe('MultiIntervalCounter', () => {
         const counter = new MultiIntervalCounter(
             now,
             testIntervals,
-            new SimpleStartInstantCalculator()
+            startInstantCalculator
         )
 
         const threshold = 60
@@ -71,7 +77,7 @@ describe('MultiIntervalCounter', () => {
         const counter = new MultiIntervalCounter(
             now,
             testIntervals,
-            new SimpleStartInstantCalculator()
+            startInstantCalculator
         )
 
         expect(counter.checkInvariant()).toBeUndefined()
@@ -92,16 +98,16 @@ describe('MultiIntervalCounter', () => {
     })
 
     it('invariant checks out before midnight', () => {
-        const lastTickMap = new SimpleStartInstantCalculator()
         checkInvariant(
-            lastTickMap.calculateStartInstantBefore(now, 'day') - 1 * minute
+            startInstantCalculator.calculateStartInstantBefore(now, 'day') -
+                1 * minute
         )
     })
 
     it('invariant checks out after midnight', () => {
-        const lastTickMap = new SimpleStartInstantCalculator()
         checkInvariant(
-            lastTickMap.calculateStartInstantBefore(now, 'day') + 1 * minute
+            startInstantCalculator.calculateStartInstantBefore(now, 'day') +
+                1 * minute
         )
     })
 })
